@@ -9,7 +9,8 @@
             [pinocchio.components
              [devices-drivers :as dd-cmp]
              [monitor :as monitor-cmp]] 
-            [taoensso.timbre :as l]))
+            [taoensso.timbre :as l])
+  (:gen-class))
 
 (clojure.lang.RT/loadLibrary org.opencv.core.Core/NATIVE_LIBRARY_NAME)
 
@@ -43,15 +44,16 @@
 
 
 (defn start-system [config-file]
-  (load-config config-file)
-  (l/info "Starting server system")
-  (alter-var-root #'server-system (fn [s] (comp/start (create-server-system  system-config))))
   (Thread/setDefaultUncaughtExceptionHandler
      (reify
        Thread$UncaughtExceptionHandler
        (uncaughtException [this thread throwable]
          (l/info throwable)
-         (l/error (format "Uncaught exception %s on thread %s" throwable thread))))))
+         (l/error (format "Uncaught exception %s on thread %s" throwable thread)))))
+  (load-config config-file)
+  (l/info "Starting server system")
+  (alter-var-root #'server-system (fn [s] (comp/start (create-server-system  system-config))))
+  )
 
 (defn stop-system []
   (when server-system

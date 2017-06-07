@@ -11,11 +11,11 @@
 
 
 
-(defn create-robot-thread [cam-ch filtered-ch tracked-ch speed-ch]
+(defn create-robot-thread [camera-1-ch filtered-ch tracked-ch speed-ch]
   (Thread.
    (fn []
      (while (not (Thread/interrupted))
-       (let [cam-frame (async/<!! cam-ch)
+       (let [cam-frame (async/<!! camera-1-ch)
              filtered-frame (cv-utils/filter-frame-color [10 120 100] [20 200 200] cam-frame)]
          (async/>!! filtered-ch filtered-frame)
          
@@ -30,13 +30,13 @@
   (start [{:keys [devices-drivers-cmp monitor-cmp robot-thread] :as this}]
     (let [filtered-ch (async/chan (async/sliding-buffer 1))
           tracked-ch (async/chan (async/sliding-buffer 1))
-          robot-thread (create-robot-thread (dd-cmp/camera-frames-ch devices-drivers-cmp :laptop-cam)
+          robot-thread (create-robot-thread (dd-cmp/camera-frames-ch devices-drivers-cmp :camera1)
                                             filtered-ch
                                             tracked-ch
                                             nil)]
       
       (monitor-cmp/publish-video-stream monitor-cmp "camera1" (dd-cmp/camera-frames-ch devices-drivers-cmp
-                                                                                       :laptop-cam))
+                                                                                       :camera1))
       
       (monitor-cmp/publish-video-stream monitor-cmp "color-filtered" filtered-ch)
       (monitor-cmp/publish-video-stream monitor-cmp "tracked" tracked-ch)
@@ -45,6 +45,6 @@
           (assoc :robot-thread robot-thread))))
   
   (stop [this]
-    (.interrupt (:robot-thread this))
+    (when-let [rt (:robot-thread this)] (.interrupt rt))
     (-> this
         (dissoc :robot-thread))))

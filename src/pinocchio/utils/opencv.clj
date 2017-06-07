@@ -3,10 +3,10 @@
    [clojure.java.shell :refer [sh]])
   (:import [org.opencv.core Mat Core Scalar Size Point MatOfByte]
            [org.opencv.imgproc Imgproc]
-           [org.opencv.highgui Highgui]))
+           [org.opencv.imgcodecs Imgcodecs]))
 
 (defn draw-rectangle [^Mat m x1 y1 x2 y2]
-  (Core/rectangle m
+  (Imgproc/rectangle m
                   (Point. x1 y1)
                   (Point. x2 y2)
                   (Scalar. 100 0 0))
@@ -62,7 +62,7 @@
 
 (defn mat->ext-byte-arr [^Mat m ext]
   (let [mob (MatOfByte.)]
-    (Highgui/imencode (case ext
+    (Imgcodecs/imencode (case ext
                         :png ".png"
                         :jpeg ".jpg")
                       m mob)
@@ -71,7 +71,7 @@
 
 (defn view-frame-matrix [^Mat fm]
   (let [tmp-img "/home/jmonetta/tmp/tmp-opencv.png"]
-    (Highgui/imwrite tmp-img fm)
+    (Imgcodecs/imwrite tmp-img fm)
     (future (sh "feh" tmp-img))))
 
 (defn pyr-down [^Mat m]

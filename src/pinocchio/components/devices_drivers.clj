@@ -1,7 +1,8 @@
 (ns pinocchio.components.devices-drivers
   (:require [com.stuartsierra.component :as comp]
-            [clojure.core.async :as async])
-  (:import [org.opencv.highgui Highgui VideoCapture]
+            [clojure.core.async :as async]
+            [taoensso.timbre :as l])
+  (:import [org.opencv.videoio VideoCapture]
            org.opencv.core.Mat))
 
 (defprotocol DevicesDriversP
@@ -22,12 +23,14 @@
                (.open vc id-or-url)
                vc))
         frame-read-thread (Thread. (fn []
-                                     (while (and (not (Thread/interrupted))
-                                                 (.isOpened vc))
-                                       (let [frame (Mat.)]
-                                         (when (.read vc frame)
-                                           (async/>!! cam-ch frame)))
-                                       (Thread/sleep 10))))]
+                                     (while (not (Thread/interrupted))
+                                       (if (.isOpened vc)
+                                        (let [frame (Mat.)]
+                                          (if (.read vc frame)
+                                            (async/>!! cam-ch frame)
+                                            (throw (ex-info (str "Can't read a frame from video capture " cam-id " " id-or-url) {}) )))
+                                        (throw (ex-info (str "Video capture isn't open " cam-id " " id-or-url) {})) )
+                                       (Thread/sleep 50))))]
     
     {:video-capture vc
      :cam-mult cam-mult
