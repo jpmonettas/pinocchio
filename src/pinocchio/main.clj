@@ -72,3 +72,5 @@
 
 
 
+;; java -cp "pinocchio-0.1.0-standalone.jar:/home/pi/opencv/opencv-3.1.0/build/bin/opencv-310.jar" -Djava.library.path=/home/pi/opencv/opencv-3.1.0/build/lib/ pinocchio.main
+;; java -cp "./:/home/pi/opencv/opencv-3.1.0/build/bin/opencv-310.jar" -Djava.library.path=/home/pi/opencv/opencv-3.1.0/build/lib/ Test

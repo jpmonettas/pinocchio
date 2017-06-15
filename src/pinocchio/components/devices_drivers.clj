@@ -16,21 +16,21 @@
 (defn- create-camera [cam-id id-or-url]
   (let [cam-ch (async/chan (async/sliding-buffer 1))
         cam-mult (async/mult cam-ch)
-        vc (if (integer? id-or-url)
-             (VideoCapture. id-or-url)
-             ;; else it's a string so open the url
-             (let [vc (VideoCapture.)]
-               (.open vc id-or-url)
-               vc))
+        vc (VideoCapture. id-or-url)
         frame-read-thread (Thread. (fn []
                                      (while (not (Thread/interrupted))
                                        (if (.isOpened vc)
-                                        (let [frame (Mat.)]
-                                          (if (.read vc frame)
-                                            (async/>!! cam-ch frame)
-                                            (throw (ex-info (str "Can't read a frame from video capture " cam-id " " id-or-url) {}) )))
-                                        (throw (ex-info (str "Video capture isn't open " cam-id " " id-or-url) {})) )
-                                       (Thread/sleep 50))))]
+                                         (let [frame (Mat.)]
+                                           (Thread/sleep 10)
+                                           (if (.read vc frame)
+                                             (async/>!! cam-ch frame)
+                                             (l/error (str "Can't read a frame from video capture " cam-id " " id-or-url))))
+
+                                        (do
+                                          (l/error (str "Video capture isn't open " cam-id " " id-or-url ". Reopenning in 1 sec."))
+                                          (Thread/sleep 1000)
+                                          (l/info "Reopenning " (.open vc id-or-url))))
+                                       )))]
     
     {:video-capture vc
      :cam-mult cam-mult
