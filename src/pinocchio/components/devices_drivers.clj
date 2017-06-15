@@ -1,14 +1,15 @@
 (ns pinocchio.components.devices-drivers
   (:require [com.stuartsierra.component :as comp]
             [clojure.core.async :as async]
-            [taoensso.timbre :as l])
+            [taoensso.timbre :as l]
+            [pinocchio.utils.opencv :as cv-utils])
   (:import [org.opencv.videoio VideoCapture]
            org.opencv.core.Mat))
 
 (defprotocol DevicesDriversP
   (cameras [_])
   (camera-frames-ch [_ cam-id])
-  (set-motor-speed [_]))
+  (set-motor-speed [_ speed]))
 
 (defrecord DevicesDriversCmp [cams])
 
@@ -23,7 +24,7 @@
                                          (let [frame (Mat.)]
                                            (Thread/sleep 10)
                                            (if (.read vc frame)
-                                             (async/>!! cam-ch frame)
+                                             (async/>!! cam-ch (cv-utils/pyr-down frame))
                                              (l/error (str "Can't read a frame from video capture " cam-id " " id-or-url))))
 
                                         (do
@@ -68,7 +69,9 @@
                  ch)
       ch))
   
-  (set-motor-speed [_])
+  (set-motor-speed [_ speed]
+    (l/info "Change speed to " speed))
+  
   )
 
 (defn create-devices-drivers [devices-drivers-config]

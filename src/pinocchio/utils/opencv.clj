@@ -9,7 +9,8 @@
   (Imgproc/rectangle m
                   (Point. x1 y1)
                   (Point. x2 y2)
-                  (Scalar. 100 0 0))
+                  (Scalar. 0 255 0)
+                  2)
   (.clone m))
 
 (defn convert-color [^Mat m c]
@@ -81,7 +82,6 @@
 
 (defn filter-frame-color [low-hsv high-hsv ^Mat m]
   (-> m
-      pyr-down
       (convert-color :bgr->hsv)
       (in-range-s low-hsv high-hsv)
       erode

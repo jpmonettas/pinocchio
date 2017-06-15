@@ -11,7 +11,8 @@
                  [com.taoensso/sente "1.11.0"]
                  [org.clojure/core.async "0.3.443"]
                  [cider/cider-nrepl "0.14.0"]
-                 [compojure "1.6.0"]]
+                 [compojure "1.6.0"]
+                 [org.clojure/data.json "0.2.6"]]
   :main ^:skip-aot pinocchio.main
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}

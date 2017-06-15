@@ -7,44 +7,72 @@
             [clojure.core.async :as async])
   (:import org.opencv.core.Mat))
 
-(defrecord RobotCmp [monitor-cmp devices-drivers-cmp])
+(defrecord RobotCmp [monitor-cmp devices-drivers-cmp robot-thread speed-ch])
+
+(defn calculate-new-speed [area]
+  (cond
+    (<= area 30)        0
+    (<= 30 area 3000)   1
+    (<= 3000 area 7000) 0
+    (<= 7000 area)     -1
+    ))
 
 
 
-(defn create-robot-thread [camera-1-ch filtered-ch tracked-ch speed-ch]
-  (Thread.
-   (fn []
-     (while (not (Thread/interrupted))
-       (let [cam-frame (async/<!! camera-1-ch)
-             filtered-frame (cv-utils/filter-frame-color [10 120 100] [20 200 200] cam-frame)]
-         (async/>!! filtered-ch filtered-frame)
-         
-         (when-let [{:keys [x1 y1 x2 y2]} (first (cv-utils/bounding-boxes filtered-frame))]
-           (async/>!! tracked-ch
-                      (cv-utils/draw-rectangle cam-frame x1 y1 x2 y2)))
-         (Thread/sleep 50))))))
+(defn robot-thread-step [monitor-cmp camera-1-ch filtered-ch tracked-ch speed-ch]
+  (let [cam-frame (async/<!! camera-1-ch)
+        filtered-frame (cv-utils/filter-frame-color [100 200 0] [110 255 255] cam-frame)]
+
+    ;; for debugging what's filtered
+    (async/>!! filtered-ch filtered-frame)
+    
+    (when-let [{:keys [x1 y1 x2 y2 area]} (first (cv-utils/bounding-boxes filtered-frame))]
+      ;; for debugging what's tracked
+      (async/>!! tracked-ch (cv-utils/draw-rectangle cam-frame x1 y1 x2 y2))
+      (monitor-cmp/publish-stats-map monitor-cmp {:biggest-object-area area})
+
+      ;; write the new speed
+      (async/>!! speed-ch (calculate-new-speed area)))))
 
 (extend-type RobotCmp
   
   comp/Lifecycle
-  (start [{:keys [devices-drivers-cmp monitor-cmp robot-thread] :as this}]
+  (start [{:keys [devices-drivers-cmp monitor-cmp] :as this}]
     (let [filtered-ch (async/chan (async/sliding-buffer 1))
           tracked-ch (async/chan (async/sliding-buffer 1))
-          robot-thread (create-robot-thread (dd-cmp/camera-frames-ch devices-drivers-cmp :camera1)
-                                            filtered-ch
-                                            tracked-ch
-                                            nil)]
+          speed-ch (async/chan (async/sliding-buffer 1))
+          robot-thread (let [camera-frames-ch (dd-cmp/camera-frames-ch devices-drivers-cmp :camera1)]
+                         (Thread.
+                          (fn []
+                            (while (not (Thread/interrupted))
+                              (robot-thread-step monitor-cmp
+                                                 camera-frames-ch
+                                                 filtered-ch
+                                                 tracked-ch
+                                                 speed-ch)))))]
       
       (monitor-cmp/publish-video-stream monitor-cmp "camera1" (dd-cmp/camera-frames-ch devices-drivers-cmp
                                                                                        :camera1))
       
       (monitor-cmp/publish-video-stream monitor-cmp "color-filtered" filtered-ch)
       (monitor-cmp/publish-video-stream monitor-cmp "tracked" tracked-ch)
+
       (.start robot-thread)
+      
+      (async/go-loop [old-speed 0]
+        (when-let [speed (async/<! speed-ch)]
+          (when (not= old-speed speed)
+            (monitor-cmp/publish-stats-map monitor-cmp {:current-speed speed})
+            (dd-cmp/set-motor-speed devices-drivers-cmp speed))
+          (recur speed)))
+      
       (-> this
-          (assoc :robot-thread robot-thread))))
+          (assoc :robot-thread robot-thread)
+          (assoc :speed-ch speed-ch))))
+  
   
   (stop [this]
     (when-let [rt (:robot-thread this)] (.interrupt rt))
+    (async/close! (:speed-ch this))
     (-> this
         (dissoc :robot-thread))))
