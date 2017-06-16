@@ -38,7 +38,8 @@
   (let [map->RobotCmp (ns-resolve (find-ns (-> system-config :robot-ns)) 'map->RobotCmp)]
    (comp/system-map
     :monitor-cmp (monitor-cmp/map->MonitorCmp {:system-config system-config})
-    :devices-drivers-cmp (dd-cmp/create-devices-drivers (:devices-drivers system-config))
+    :devices-drivers-cmp (dd-cmp/create-devices-drivers system-config
+                                                        (:devices-drivers system-config))
     :robot-cmp (comp/using (map->RobotCmp {})
                            [:monitor-cmp :devices-drivers-cmp]))))
 

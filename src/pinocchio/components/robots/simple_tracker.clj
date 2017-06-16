@@ -21,7 +21,10 @@
 
 (defn robot-thread-step [monitor-cmp camera-1-ch filtered-ch tracked-ch speed-ch]
   (let [cam-frame (async/<!! camera-1-ch)
-        filtered-frame (cv-utils/filter-frame-color [100 200 0] [110 255 255] cam-frame)]
+        filtered-frame (cv-utils/filter-frame-color
+                        ;;[100 200 0] [110 255 255] ;; cyan charger with laptop cam
+                        [90 200 0] [95 255 255] ;; cyan charger with cel cam
+                        cam-frame)]
 
     ;; for debugging what's filtered
     (async/>!! filtered-ch filtered-frame)
@@ -63,7 +66,7 @@
         (when-let [speed (async/<! speed-ch)]
           (when (not= old-speed speed)
             (monitor-cmp/publish-stats-map monitor-cmp {:current-speed speed})
-            (dd-cmp/set-motor-speed devices-drivers-cmp speed))
+            (dd-cmp/set-motor-speed devices-drivers-cmp :main-motor speed))
           (recur speed)))
       
       (-> this

@@ -12,7 +12,8 @@
                  [org.clojure/core.async "0.3.443"]
                  [cider/cider-nrepl "0.14.0"]
                  [compojure "1.6.0"]
-                 [org.clojure/data.json "0.2.6"]]
+                 [org.clojure/data.json "0.2.6"]
+                 [com.pi4j/pi4j-core "1.1"]]
   :main ^:skip-aot pinocchio.main
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}
