@@ -43,17 +43,17 @@
 (extend-type DevicesDriversCmp
   comp/Lifecycle
   (start [this]
-    (let [arduino-i2c-device (-> (I2CFactory/getInstance I2CBus/BUS_1)
-                                 ;; 0x9 arduino address
-                                 (.getDevice 16r9))] 
+    ;; Start all cameras frame read threads 
+    (doseq [cam (vals (:cams this))]
+      (l/info "Starting " cam " camera thread")
+      (.start (:frame-read-thread cam)))
 
-      ;; Start all cameras frame read threads 
-      (doseq [cam (vals (:cams this))]
-        (l/info "Starting " cam " camera thread")
-        (.start (:frame-read-thread cam)))
+    (cond-> this
 
-      (-> this
-          (assoc :arduino-i2c-device arduino-i2c-device))))
+      (-> this :system-config :i2c-enable?)
+      (assoc :arduino-i2c-device (-> (I2CFactory/getInstance I2CBus/BUS_1)
+                                     ;; 0x9 arduino address
+                                     (.getDevice 16r9)))))
   
   (stop [this]
 
@@ -81,13 +81,14 @@
   (set-motor-speed [{:keys [arduino-i2c-device system-config]} motor-id speed]
     (l/info (format "Changed speed of %s to %s" motor-id speed))
     (if arduino-i2c-device
-      (.write arduino-i2c-device (byte-array [;; first byte is device id
-                                              (get-in system-config [:devices-drivers :motors motor-id])
+      (when (:i2c-enable? system-config)
+       (.write arduino-i2c-device (byte-array [ ;; first byte is device id
+                                               (get-in system-config [:devices-drivers :motors motor-id])
                                               
-                                              ;; first bit represents direction
-                                              ;; - 1 backwards - 0 forward
-                                              ;; last 7 represents speed
-                                              (byte speed)]))
+                                               ;; first bit represents direction
+                                               ;; - 1 backwards - 0 forward
+                                               ;; last 7 represents speed
+                                               (byte speed)])))
       (l/error "Arduino i2c device is null"))))
 
 (defn create-devices-drivers [system-config devices-drivers-config]
