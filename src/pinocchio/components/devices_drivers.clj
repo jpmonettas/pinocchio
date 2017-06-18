@@ -80,16 +80,16 @@
   
   (set-motor-speed [{:keys [arduino-i2c-device system-config]} motor-id speed]
     (l/info (format "Changed speed of %s to %s" motor-id speed))
-    (if arduino-i2c-device
-      (when (:i2c-enable? system-config)
+    (when (:i2c-enable? system-config)
+     (if arduino-i2c-device
        (.write arduino-i2c-device (byte-array [ ;; first byte is device id
                                                (get-in system-config [:devices-drivers :motors motor-id])
-                                              
+                                               
                                                ;; first bit represents direction
                                                ;; - 1 backwards - 0 forward
                                                ;; last 7 represents speed
-                                               (byte speed)])))
-      (l/error "Arduino i2c device is null"))))
+                                               (byte speed)]))
+       (l/error "Arduino i2c device is null")))))
 
 (defn create-devices-drivers [system-config devices-drivers-config]
   (map->DevicesDriversCmp {:cams (reduce-kv

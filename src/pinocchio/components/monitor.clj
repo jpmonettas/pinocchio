@@ -62,7 +62,12 @@
               {:status 404
                :body "Stream not found."}))
 
-       (GET "/ws" req ((:ajax-get-or-ws-handshake-fn chsk) req))
+       (GET "/ws" req (do
+                        ((:send-fn chsk) :sente/all-users-without-uid
+                         [:pinocchio.monitor/streams (->> @streams
+                                                          keys
+                                                          (map name))])
+                        ((:ajax-get-or-ws-handshake-fn chsk) req)))
        (POST "/ws" req ((:ajax-post-fn chsk) req)))
       wrap-keyword-params
       wrap-params))
