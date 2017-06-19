@@ -45,6 +45,13 @@
 
 
 (defn start-system [config-file]
+  (.start (Thread. (fn []
+                     (loop []
+                      (Thread/sleep 5000)
+                      (l/debug "Running garbage collection")
+                      (System/gc)
+                      (System/runFinalization)
+                      (recur)))))
   (Thread/setDefaultUncaughtExceptionHandler
      (reify
        Thread$UncaughtExceptionHandler
