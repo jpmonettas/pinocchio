@@ -38,7 +38,7 @@
     (send stats-agent merge stats-map))
 
   (inc-stats-counter! [{:keys [stats-agent]} key]
-    (send stats-agent update-in [:frames-counts key] (fnil inc 0)))
+    (send stats-agent update-in [:frames-counts (keyword key)] (fnil inc 0)))
 
   (get-stats [{:keys [stats-agent]}]
     @stats-agent)

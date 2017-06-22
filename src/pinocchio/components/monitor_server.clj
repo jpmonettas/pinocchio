@@ -58,19 +58,38 @@
       wrap-keyword-params
       wrap-params))
 
+(defn calculate-stats [delta-millis last-counts current-counts]
+  (reduce
+   (fn [r [id counter]]
+     (-> r
+         (assoc id {:count counter
+                    :fps (let [delta-count (- counter (get last-counts id 0))]
+                           (if (zero? delta-count)
+                             0
+                             (float (/ 1000
+                                       (/ delta-millis delta-count)))))})))
+   {}
+   current-counts))
+
+(defn stats-push-process [monitor-cmp chsk]
+      ;; periodically send stats reports thru ws
+      (async/go-loop [last-counts (:frames-counts (monitor-cmp/get-stats monitor-cmp))]
+        (async/<! (async/timeout 500))
+        (let [current-counts (:frames-counts (monitor-cmp/get-stats monitor-cmp))]
+          ((:send-fn chsk) :sente/all-users-without-uid [:pinocchio.monitor/new-stats
+                                                         
+                                                         (assoc (monitor-cmp/get-stats monitor-cmp)
+                                                                :frames-counts
+                                                                (calculate-stats 500 last-counts current-counts))])
+         (recur current-counts))))
+
 (extend-type MonitorServerCmp
   
   comp/Lifecycle
   (start [this]
     (let [chsk (sente/make-channel-socket! (get-sch-adapter) {})]
 
-      ;; periodically send stats reports thru ws
-      (async/go-loop []
-        (async/<! (async/timeout 500))
-        ((:send-fn chsk) :sente/all-users-without-uid [:pinocchio.monitor/new-stats
-                                                       (monitor-cmp/get-stats (:monitor-cmp this))])
-        (recur))
-      
+      (stats-push-process (:monitor-cmp this) chsk)
       (-> this
           (assoc :chsk chsk)
           (assoc :http-server (http-kit-server/run-server (build-requests-handler (:monitor-cmp this) chsk)
