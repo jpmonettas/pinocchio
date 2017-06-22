@@ -32,10 +32,10 @@
     (when-let [{:keys [x1 y1 x2 y2 area]} (first (cv-utils/bounding-boxes filtered-frame))]
       ;; for debugging what's tracked
       (async/>!! tracked-ch (cv-utils/draw-rectangle cam-frame x1 y1 x2 y2))
-      (monitor-cmp/publish-stats-map monitor-cmp {:biggest-object-area area})
+      (monitor-cmp/add-to-stats-map monitor-cmp {:biggest-object-area area})
 
       ;; write the new speed
-      (async/>!! speed-ch (calculate-new-speed area)))))
+      #_(async/>!! speed-ch (calculate-new-speed area)))))
 
 (extend-type RobotCmp
   
@@ -65,7 +65,7 @@
       (async/go-loop [old-speed 0]
         (when-let [speed (async/<! speed-ch)]
           (when (not= old-speed speed)
-            (monitor-cmp/publish-stats-map monitor-cmp {:current-speed speed})
+            (monitor-cmp/add-to-stats-map monitor-cmp {:current-speed speed})
             (dd-cmp/set-motor-speed devices-drivers-cmp :main-motor speed))
           (recur speed)))
       

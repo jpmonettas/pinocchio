@@ -8,7 +8,8 @@
             [com.stuartsierra.component :as comp]
             [pinocchio.components
              [devices-drivers :as dd-cmp]
-             [monitor :as monitor-cmp]] 
+             [monitor :as monitor-cmp]
+             [monitor-server :as monitor-server-cmp]] 
             [taoensso.timbre :as l])
   (:gen-class))
 
@@ -38,20 +39,16 @@
   (let [map->RobotCmp (ns-resolve (find-ns (-> system-config :robot-ns)) 'map->RobotCmp)]
    (comp/system-map
     :monitor-cmp (monitor-cmp/map->MonitorCmp {:system-config system-config})
-    :devices-drivers-cmp (dd-cmp/create-devices-drivers system-config
-                                                        (:devices-drivers system-config))
+    :monitor-server-cmp (comp/using (monitor-server-cmp/map->MonitorServerCmp {:system-config system-config})
+                                    [:monitor-cmp])
+    :devices-drivers-cmp (comp/using (dd-cmp/create-devices-drivers system-config)
+                                [:monitor-cmp])
     :robot-cmp (comp/using (map->RobotCmp {})
                            [:monitor-cmp :devices-drivers-cmp]))))
 
 
 (defn start-system [config-file]
-  (.start (Thread. (fn []
-                     (loop []
-                      (Thread/sleep 5000)
-                      (l/debug "Running garbage collection")
-                      (System/gc)
-                      (System/runFinalization)
-                      (recur)))))
+  
   (Thread/setDefaultUncaughtExceptionHandler
      (reify
        Thread$UncaughtExceptionHandler

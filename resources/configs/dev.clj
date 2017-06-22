@@ -3,7 +3,7 @@
  :i2c-enable? false
  :devices-drivers {:cameras {
                              ;; :laptop-cam 0
-                             :camera1 0 ;; "http://192.168.1.9:8080/video?hack=hack.mjpg"
+                             :camera1 "http://192.168.1.9:8080/video?hack=hack.mjpg"
                              }
                    :motors {:main-motor    2r00000001
                             :turning-motor 2r00000010}}

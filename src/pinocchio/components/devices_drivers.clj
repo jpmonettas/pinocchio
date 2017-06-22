@@ -2,6 +2,7 @@
   (:require [clojure.core.async :as async]
             [com.stuartsierra.component :as comp]
             [pinocchio.utils.opencv :as cv-utils]
+            [pinocchio.components.monitor :as monitor-cmp]
             [taoensso.timbre :as l])
   (:import [com.pi4j.io.i2c I2CBus I2CFactory]
            org.opencv.core.Mat
@@ -12,10 +13,10 @@
   (camera-frames-ch [_ cam-id])
   (set-motor-speed [_ motor-id speed]))
 
-(defrecord DevicesDriversCmp [system-config cams arduino-i2c-device])
+(defrecord DevicesDriversCmp [system-config cams arduino-i2c-device monitor-cmp gc-thread])
 
 
-(defn- create-camera [cam-id id-or-url]
+(defn- create-camera [monitor-cmp cam-id id-or-url]
   (let [cam-ch (async/chan (async/sliding-buffer 1))
         cam-mult (async/mult cam-ch)
         vc (VideoCapture. id-or-url)
@@ -25,7 +26,8 @@
                                          (let [frame (Mat.)]
                                            (Thread/sleep 10)
                                            (if (.read vc frame)
-                                             (async/>!! cam-ch (cv-utils/pyr-down frame))
+                                             (do (async/>!! cam-ch (cv-utils/pyr-down frame))
+                                                 (monitor-cmp/inc-stats-counter! monitor-cmp :read))
                                              (l/error (str "Can't read a frame from video capture " cam-id " " id-or-url))))
 
                                         (do
@@ -43,17 +45,33 @@
 (extend-type DevicesDriversCmp
   comp/Lifecycle
   (start [this]
-    ;; Start all cameras frame read threads 
-    (doseq [cam (vals (:cams this))]
-      (l/info "Starting " cam " camera thread")
-      (.start (:frame-read-thread cam)))
+    (let [gc-thread (Thread. (fn []
+                               (when-not (Thread/interrupted)
+                                (Thread/sleep 15000)
+                                (System/gc)
+                                (System/runFinalization)
+                                (recur))))
+          cams (reduce-kv
+                (fn [r cam-id id-or-url]
+                  (assoc r cam-id (create-camera (:monitor-cmp this) cam-id id-or-url)))
+                {}
+                (-> this :system-config :devices-drivers :cameras))]
+     ;; Start all cameras frame read threads 
+      (doseq [cam (vals cams)]
+       (l/info "Starting " cam " camera thread")
+       (.start (:frame-read-thread cam)))
 
-    (cond-> this
+      (.start gc-thread)
 
-      (-> this :system-config :i2c-enable?)
-      (assoc :arduino-i2c-device (-> (I2CFactory/getInstance I2CBus/BUS_1)
-                                     ;; 0x9 arduino address
-                                     (.getDevice 16r9)))))
+     (cond-> this
+
+       (-> this :system-config :i2c-enable?)
+       (assoc :arduino-i2c-device (-> (I2CFactory/getInstance I2CBus/BUS_1)
+                                      ;; 0x9 arduino address
+                                      (.getDevice 16r9)))
+
+       true (assoc :cams cams)
+       true (assoc :gc-thread gc-thread))))
   
   (stop [this]
 
@@ -62,6 +80,8 @@
       (.interrupt (:frame-read-thread cam))
       (.release (:video-capture cam)))
 
+    (.interrupt (:gc-thread this))
+    
     (-> this
         (dissoc :cams)))
 
@@ -91,11 +111,6 @@
                                                (byte speed)]))
        (l/error "Arduino i2c device is null")))))
 
-(defn create-devices-drivers [system-config devices-drivers-config]
-  (map->DevicesDriversCmp {:cams (reduce-kv
-                                  (fn [r cam-id id-or-url]
-                                    (assoc r cam-id (create-camera cam-id id-or-url)))
-                                  {}
-                                  (:cameras devices-drivers-config))
-                           :system-config system-config}))
+(defn create-devices-drivers [system-config]
+  (map->DevicesDriversCmp {:system-config system-config}))
 
